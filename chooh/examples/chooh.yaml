@@ -1,0 +1,12 @@
+servers:
+    development: http://admin:password@127.0.0.1:5984
+    production: http://admin:password@127.0.0.1:5984
+
+databases:
+    development_main:
+        server: development
+        db_name: dummy
+
+    production_main:
+        server: production
+        db_name: genius

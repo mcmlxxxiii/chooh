@@ -88,9 +88,10 @@ class ChoohApplication:
     def _push_ddoc(self, db_nickname, ddoc_name):
         ddoc_assembly_dir = os.path.join(
                 self._ddocs_assembly_dir, db_nickname, ddoc_name)
-        server = self._config['databases'][db_nickname]['server']
+        server_nickname = self._config['databases'][db_nickname]['server']
+        server_uri = self._config['servers'][server_nickname]
         db_name = self._config['databases'][db_nickname]['db_name']
-        s = couchdbkit.Server(uri=server)
+        s = couchdbkit.Server(uri=server_uri)
         db = s.get_or_create_db(db_name)
         ddoc = couchdbkit.designer.document(ddoc_assembly_dir)
         ddoc.push([db], atomic=False)
