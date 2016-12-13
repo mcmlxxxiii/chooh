@@ -1,12 +1,33 @@
 servers:
     development: http://admin:password@127.0.0.1:5984
-    production: http://admin:password@127.0.0.1:5984
+    production: http://superuser:superpassword@production.com
 
 databases:
-    development_main:
+    development_fe:
         server: development
-        db_name: dummy
+        db_name: dummy_fe
 
-    production_main:
+    development_data:
+        server: development
+        db_name: dummy_data
+
+    production_fe:
         server: production
-        db_name: genius
+        db_name: genius_fe
+
+    production_data:
+        server: production
+        db_name: genius_data
+
+deployments:
+    development:
+        - ddoc: fe
+          target_database: development_fe
+        - ddoc: data
+          target_database: development_data
+
+    production:
+        - ddoc: fe
+          target_database: production_fe
+        - ddoc: data
+          target_database: production_data

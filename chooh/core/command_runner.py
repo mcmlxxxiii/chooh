@@ -32,17 +32,20 @@ def run(**options):
 
     app = ChoohApplication(root_dir_path)
 
+    auto = options['--auto']
     push_ddoc = options['push'] and options['ddoc']
 
     if push_ddoc:
         db_nickname = options['<database>'] or convention.DEFAULT_DATABASE
         ddoc_name = options['<ddoc>']
-        auto_push = options['--auto']
 
-        if auto_push:
+        if auto:
             app.auto_push(db_nickname, ddoc_name)
         else:
             if ddoc_name:
-                app.prepare_and_push_one_ddoc(db_nickname, ddoc_name)
+                app.prepare_and_push_one_ddoc(ddoc_name, db_nickname)
             else:
                 app.prepare_and_push_all_ddocs(db_nickname)
+
+    elif options['deploy'] and options['<deployment>']:
+        app.deploy(options['<deployment>'])

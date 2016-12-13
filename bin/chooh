@@ -4,6 +4,7 @@
 chooh.
 
 Usage:
+  chooh deploy [<deployment>]
   chooh push ddoc [--auto] [<ddoc>] [<database>]
   chooh (-h | --help)
   chooh --version

@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 
 import os
-import sys
 import time
-import datetime
 import couchdbkit
 import shutil
 
 from . import convention
+from .decorators import log_task
 from chooh.util import beep
 from chooh.util import read_yaml
 from chooh.util.fs import copydir
 from chooh.util.fs_observer import observe_directory_changes
+
+
 
 
 class ChoohApplication:
@@ -96,20 +97,16 @@ class ChoohApplication:
         ddoc = couchdbkit.designer.document(ddoc_assembly_dir)
         ddoc.push([db], atomic=False)
 
-    def prepare_and_push_one_ddoc(self, db_nickname, ddoc_name):
-        sys.stdout.write('%s Pushing ddoc `%s\' to database `%s\'. ' %
-                (datetime.datetime.now(), ddoc_name, db_nickname))
-        start_time = time.time()
+    @log_task('Pushing ddoc `%s\' to database `%s\'.')
+    def prepare_and_push_one_ddoc(self, ddoc_name, db_nickname):
         self._prepare_ddoc_dirs(db_nickname, ddoc_name)
         self._prepare_ddoc(db_nickname, ddoc_name)
         self._push_ddoc(db_nickname, ddoc_name)
-        sys.stdout.write(
-                'Done (in %.04f secs)\n' % (time.time() - start_time))
 
     def prepare_and_push_all_ddocs(self, db_nickname):
         self._cleanup()
         for ddoc_name in self._get_ddoc_names():
-            self.prepare_and_push_one_ddoc(db_nickname, ddoc_name)
+            self.prepare_and_push_one_ddoc(ddoc_name, db_nickname)
 
     def auto_push(self, db_nickname, ddoc_name):
         # TODO Determine from changes what ddocs were changed to push only
@@ -118,7 +115,7 @@ class ChoohApplication:
         if ddoc_name:
             monitored_dir = os.path.join(self._ddocs_dir, ddoc_name)
             def change_handler(events):
-                self.prepare_and_push_one_ddoc(db_nickname, ddoc_name)
+                self.prepare_and_push_one_ddoc(ddoc_name, db_nickname)
         else:
             monitored_dir = self._ddocs_dir
             def change_handler(events):
@@ -132,3 +129,10 @@ class ChoohApplication:
         except KeyboardInterrupt:
             observer.stop()
         observer.join()
+
+    @log_task('Deploying `%s\'.')
+    def deploy(self, deployment):
+        deployment_sequence = self._config['deployments'][deployment]
+        for push in deployment_sequence:
+            self.prepare_and_push_one_ddoc(
+                    push['ddoc'], push['target_database'])
