@@ -48,9 +48,6 @@ class ChoohApplication:
                        os.path.join(self._ddocs_dir, dirname)) ]
         return ddoc_names
 
-    def _get_ddoc_assembly_dir(self, db_nickname, ddoc_name):
-        return os.path.join(self._ddocs_assembly_dir, db_nickname, ddoc_name)
-
     def _cleanup(self):
         if os.path.exists(self._ddocs_assembly_dir):
             shutil.rmtree(self._ddocs_assembly_dir)
@@ -70,7 +67,7 @@ class ChoohApplication:
         copydir(os.path.join(self._ddocs_dir, ddoc_name),
                 ddoc_assembly_dir)
 
-    def _prepare_ddoc(self, db_nickname, ddoc_name):
+    def _prepare_ddoc(self, db_nickname, ddoc_name, changes):
         ddoc_assembly_dir = os.path.join(
                 self._ddocs_assembly_dir, db_nickname, ddoc_name)
         prepare_mod_path = os.path.join(
@@ -80,7 +77,8 @@ class ChoohApplication:
             try:
                 execfile(prepare_mod_path, {
                     'ddoc_dir': ddoc_assembly_dir,
-                    'db_nickname': db_nickname
+                    'db_nickname': db_nickname,
+                    'changes': changes
                 })
             except Exception as e:
                 beep()
@@ -97,42 +95,61 @@ class ChoohApplication:
         ddoc = couchdbkit.designer.document(ddoc_assembly_dir)
         ddoc.push([db], atomic=False)
 
-    @log_task('Pushing ddoc `%s\' to database `%s\'.')
-    def prepare_and_push_one_ddoc(self, ddoc_name, db_nickname):
+    @log_task('Pushing ddoc <%s> to database <%s>', lambda *args: args[0:2])
+    def _prepare_and_push_one_ddoc(self, ddoc_name, db_nickname, changes=None):
+        ddoc_dir_path = os.path.join(self._ddocs_dir, ddoc_name)
         self._prepare_ddoc_dirs(db_nickname, ddoc_name)
-        self._prepare_ddoc(db_nickname, ddoc_name)
+        self._prepare_ddoc(db_nickname, ddoc_name, changes)
         self._push_ddoc(db_nickname, ddoc_name)
 
-    def prepare_and_push_all_ddocs(self, db_nickname):
-        self._cleanup()
-        for ddoc_name in self._get_ddoc_names():
-            self.prepare_and_push_one_ddoc(ddoc_name, db_nickname)
+    @log_task('Deploying <%s>')
+    def _deploy_once(self, deployment):
+        push_list = self._get_deployment_push_list(deployment)
+        for push in push_list:
+            self._prepare_and_push_one_ddoc(
+                    push['ddoc'], push['target_database'])
 
-    def auto_push(self, db_nickname, ddoc_name):
-        # TODO Determine from changes what ddocs were changed to push only
-        # the changed ones.
+    def _deploy_continiously(self, deployment):
+        push_list = self._get_deployment_push_list(deployment)
+        observers = []
 
-        if ddoc_name:
-            monitored_dir = os.path.join(self._ddocs_dir, ddoc_name)
-            def change_handler(events):
-                self.prepare_and_push_one_ddoc(ddoc_name, db_nickname)
-        else:
-            monitored_dir = self._ddocs_dir
-            def change_handler(events):
-                self.prepare_and_push_all_ddocs(db_nickname)
+        for push in push_list:
+            monitored_dir = os.path.join(self._ddocs_dir, push['ddoc'])
 
-        observer = observe_directory_changes(monitored_dir, change_handler)
+            def make_change_handler(ddoc_name, target_database):
+                def change_handler(changes):
+                    self._prepare_and_push_one_ddoc(
+                            ddoc_name, target_database, changes)
+                return change_handler
+
+            observer = observe_directory_changes(
+                    monitored_dir,
+                    make_change_handler(push['ddoc'], push['target_database']))
+
+            observers.append(observer)
 
         try:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            observer.stop()
-        observer.join()
+            for observer in observers:
+                observer.stop()
 
-    @log_task('Deploying `%s\'.')
-    def deploy(self, deployment):
-        deployment_sequence = self._config['deployments'][deployment]
-        for push in deployment_sequence:
-            self.prepare_and_push_one_ddoc(
-                    push['ddoc'], push['target_database'])
+        for observer in observers:
+            observer.join()
+
+
+    def _get_deployment_push_list(self, deployment):
+        if isinstance(deployment, list):
+            push_list = deployment
+        elif isinstance(deployment, str):
+            push_list = self._config['deployments'][deployment]
+        else:
+            push_list = []
+        return push_list
+
+    def deploy(self, deployment, auto=False):
+        if auto:
+            self._deploy_continiously(deployment)
+        else:
+            self._deploy_once(deployment)
