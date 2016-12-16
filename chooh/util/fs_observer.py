@@ -21,7 +21,8 @@ class EventBunchDelayedHandler(events.FileSystemEventHandler):
     def make_real_callback(self, c):
         def cb():
             if c == self._counter:
-                changes = EventBunchDelayedHandler.extract_changes(self._events_collected)
+                changes = EventBunchDelayedHandler.extract_changes(
+                        self._events_collected)
                 self._callback(changes)
                 self._events_collected = []
         return cb
@@ -46,6 +47,9 @@ class EventBunchDelayedHandler(events.FileSystemEventHandler):
         }
 
         for e in event_list:
+            # NB! If a directory or a file was moved out of the observed dir,
+            # it is treated as deleted.
+
             if isinstance(e, events.FileDeletedEvent):
                 changes['deleted_files'].append(e.src_path)
 
@@ -59,26 +63,26 @@ class EventBunchDelayedHandler(events.FileSystemEventHandler):
             elif isinstance(e, events.FileModifiedEvent):
                 changes['modified_files'].append(e.src_path)
 
-            elif isinstance(e, events.FileMovedEvent):
-                changes['moved_files'].append([e.src_path, e.dest_path])
-
             elif isinstance(e, events.DirDeletedEvent):
                 changes['deleted_dirs'].append(e.src_path)
 
             elif isinstance(e, events.DirCreatedEvent):
                 changes['created_dirs'].append(e.src_path)
 
+            elif isinstance(e, events.FileMovedEvent):
+                changes['moved_files'].append([e.src_path, e.dest_path])
+
             elif isinstance(e, events.DirMovedEvent):
                 changes['moved_dirs'].append([e.src_path, e.dest_path])
 
-            # DirModifiedEvent is triggered at all times, so it is not
-            # very useful and is not being handled.
+            # DirModifiedEvent is triggered at all times. It is not
+            # very useful, so it is not being handled.
 
         return changes
 
-def observe_directory_changes(path, callback, delay=0.5):
+def observe_directory_changes(dir_path, callback, delay=0.5):
     observer = observers.Observer()
     observer.schedule(
-            EventBunchDelayedHandler(delay, callback), path, recursive=True)
+            EventBunchDelayedHandler(delay, callback), dir_path, recursive=True)
     observer.start()
     return observer

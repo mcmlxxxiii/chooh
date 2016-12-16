@@ -14,7 +14,6 @@ from chooh.util.fs_observer import observe_directory_changes
 
 
 
-
 class ChoohApplication:
 
     def __init__(self, root_dir):
@@ -52,11 +51,14 @@ class ChoohApplication:
         if os.path.exists(self._ddocs_assembly_dir):
             shutil.rmtree(self._ddocs_assembly_dir)
 
-    def _prepare_ddoc_dirs(self, db_nickname, ddoc_name):
+    def _prepare_ddoc_dirs(self, push_info):
         ddocs_assembly_dir = os.path.join(
-                self._ddocs_assembly_dir, db_nickname)
+                self._ddocs_assembly_dir,
+                push_info.deployment)
         ddoc_assembly_dir = os.path.join(
-                self._ddocs_assembly_dir, db_nickname, ddoc_name)
+                self._ddocs_assembly_dir,
+                push_info.deployment,
+                push_info.ddoc)
 
         if os.path.exists(ddoc_assembly_dir):
             shutil.rmtree(ddoc_assembly_dir)
@@ -64,67 +66,87 @@ class ChoohApplication:
         if not os.path.exists(ddocs_assembly_dir):
             os.makedirs(ddocs_assembly_dir)
 
-        copydir(os.path.join(self._ddocs_dir, ddoc_name),
+        copydir(os.path.join(self._ddocs_dir, push_info.ddoc),
                 ddoc_assembly_dir)
 
-    def _prepare_ddoc(self, db_nickname, ddoc_name, changes):
+    def _prepare_ddoc(self, push_info, changes):
         ddoc_assembly_dir = os.path.join(
-                self._ddocs_assembly_dir, db_nickname, ddoc_name)
+                self._ddocs_assembly_dir, push_info.deployment, push_info.ddoc)
         prepare_mod_path = os.path.join(
-                self._ddocs_dir, 'prepare_%s.py' % ddoc_name)
+                self._ddocs_dir, 'prepare_%s.py' % push_info.ddoc)
 
         if os.path.isfile(prepare_mod_path):
             try:
                 execfile(prepare_mod_path, {
                     'ddoc_dir': ddoc_assembly_dir,
-                    'db_nickname': db_nickname,
+                    'deployment': push_info.deployment,
+                    'config': push_info.config,
                     'changes': changes
                 })
             except Exception as e:
                 beep()
                 raise e
 
-    def _push_ddoc(self, db_nickname, ddoc_name):
+    def _push_ddoc(self, push_info):
         ddoc_assembly_dir = os.path.join(
-                self._ddocs_assembly_dir, db_nickname, ddoc_name)
-        server_nickname = self._config['databases'][db_nickname]['server']
-        server_uri = self._config['servers'][server_nickname]
-        db_name = self._config['databases'][db_nickname]['db_name']
+                self._ddocs_assembly_dir,
+                push_info.deployment,
+                push_info.ddoc)
+        server_uri = self._config['servers'][push_info.target_server]
+        db_name = push_info.target_database_on_server
         s = couchdbkit.Server(uri=server_uri)
         db = s.get_or_create_db(db_name)
         ddoc = couchdbkit.designer.document(ddoc_assembly_dir)
         ddoc.push([db], atomic=False)
 
-    @log_task('Pushing ddoc <%s> to database <%s>', lambda *args: args[0:2])
-    def _prepare_and_push_one_ddoc(self, ddoc_name, db_nickname, changes=None):
-        ddoc_dir_path = os.path.join(self._ddocs_dir, ddoc_name)
-        self._prepare_ddoc_dirs(db_nickname, ddoc_name)
-        self._prepare_ddoc(db_nickname, ddoc_name, changes)
-        self._push_ddoc(db_nickname, ddoc_name)
+    @log_task('Pushing ddoc <%s> to database <%s>', lambda push_info, *args:
+            (push_info.ddoc, push_info.target_database))
+    def _prepare_and_push_one_ddoc(self, push_info, changes=None):
+        self._prepare_ddoc_dirs(push_info)
+        self._prepare_ddoc(push_info, changes)
+        self._push_ddoc(push_info)
 
     @log_task('Deploying <%s>')
-    def _deploy_once(self, deployment):
-        push_list = self._get_deployment_push_list(deployment)
-        for push in push_list:
-            self._prepare_and_push_one_ddoc(
-                    push['ddoc'], push['target_database'])
+    def _deploy_once(self, deployment_name):
+        deployment_info = self._get_deployment_info(deployment_name)
+        push_list = deployment_info.pushes
+        for push_info in push_list:
+            self._prepare_and_push_one_ddoc(push_info)
 
-    def _deploy_continiously(self, deployment):
-        push_list = self._get_deployment_push_list(deployment)
+    def _deploy_continiously(self, deployment_name):
+        deployment_info = self._get_deployment_info(deployment_name)
+        push_list = deployment_info.pushes
         observers = []
 
-        for push in push_list:
-            monitored_dir = os.path.join(self._ddocs_dir, push['ddoc'])
+        # Making changes relative to monitored directory.
+        def process_changes(changes, monitored_dir):
+            monitored_dir_len = len(monitored_dir + '/')
+            new_changes = {}
+            for (group_name, group) in changes.iteritems():
+                new_group = []
+                for fs_obj in group:
+                    if isinstance(fs_obj, list):
+                        new_group.append([
+                            fs_obj[0][monitored_dir_len:],
+                            fs_obj[1][monitored_dir_len:]
+                        ])
+                    else:
+                        new_group.append(fs_obj[monitored_dir_len:])
+                new_changes[group_name] = new_group
+            return new_changes
 
-            def make_change_handler(ddoc_name, target_database):
+        for push_info in push_list:
+            monitored_dir = os.path.join(self._ddocs_dir, push_info.ddoc)
+
+            def make_change_handler(push_info, monitored_dir):
                 def change_handler(changes):
-                    self._prepare_and_push_one_ddoc(
-                            ddoc_name, target_database, changes)
+                    changes = process_changes(changes, monitored_dir)
+                    self._prepare_and_push_one_ddoc(push_info, changes)
                 return change_handler
 
             observer = observe_directory_changes(
                     monitored_dir,
-                    make_change_handler(push['ddoc'], push['target_database']))
+                    make_change_handler(push_info, monitored_dir))
 
             observers.append(observer)
 
@@ -139,17 +161,47 @@ class ChoohApplication:
             observer.join()
 
 
-    def _get_deployment_push_list(self, deployment):
-        if isinstance(deployment, list):
-            push_list = deployment
-        elif isinstance(deployment, str):
-            push_list = self._config['deployments'][deployment]
-        else:
-            push_list = []
-        return push_list
+    def _get_deployment_info(self, deployment_name):
+        return DeploymentInfo(
+                    deployment_name,
+                    self._config['deployments'][deployment_name])
 
-    def deploy(self, deployment, auto=False):
+
+    def deploy(self, deployment_name, auto=False):
         if auto:
-            self._deploy_continiously(deployment)
+            self._deploy_continiously(deployment_name)
         else:
-            self._deploy_once(deployment)
+            self._deploy_once(deployment_name)
+
+class PushInfo:
+    def __init__(self, deployment_name, ddoc, target_database, config):
+        self.deployment = deployment_name
+        self.ddoc = ddoc
+        self.target_database = target_database
+        self.config = config
+
+        server_name, db_name = target_database.split('/')
+        self.target_server = server_name
+        self.target_database_on_server = db_name
+
+class DeploymentInfo:
+    def __init__(self, deployment_name, deployment_data):
+        self.name = deployment_name
+
+        if deployment_data.has_key('config') and \
+                isinstance(deployment_data['config'], dict):
+            config = dict(deployment_data['config'])
+        else:
+            config = {}
+
+        self.config = config
+
+        self.pushes = [
+                PushInfo(
+                    deployment_name,
+                    push['ddoc'],
+                    push['target_database'],
+                    config)
+                for push in deployment_data['pushes']
+            ]
+

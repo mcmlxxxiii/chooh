@@ -36,10 +36,3 @@ def run(**options):
 
         if options['<deployment>']:
             app.deploy(options['<deployment>'], auto=options['--auto'])
-
-        elif options['<ddoc>'] and options['<database>']:
-            push = {
-                    'ddoc': options['<ddoc>'],
-                    'target_database': options['<database>']
-                }
-            app.deploy([push], auto=options['--auto'])
