@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='chooh',
-      version='0.1',
+      version='0.2',
       description='Utility for working with CouchDB design document applications (couchapps).',
       url='http://github.com/mcmlxxxiii/chooh',
       author='Mykhaylo Gavrylyuk',
