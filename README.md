@@ -25,29 +25,51 @@ locally would ever popute the system-wide python installation.
 project. That is how `chooh` command would determine the root directory so that
 it can be run from any directory under it.
 
-So far, `chooh.yaml` is also used for configuring databases.
+`chooh.yaml` is used for project configuration.
 
 ```yaml
-databases:
-    development:
-        server: http://user:password@127.0.0.1:5984
-        db_name: dummy
+servers:
+    development: http://user:password@127.0.0.1:5984
+    production: https://superuser:superpassword@production.com
 
+deployments:
+    development:
+        pushes:
+            - ddoc: site
+              target_database: development/site
+            - ddoc: data
+              target_database: development/data
+        config:
+            debug: YES
     production:
-        server: http://user:password@production.com:5984
-        db_name: genius
+        pushes:
+            - ddoc: site
+              target_database: production/site
+            - ddoc: data
+              target_database: production/data
+        config:
+            debug: NO
 ```
 
-**(2)** Right in your project root, there should be a `ddocs/` folder.
+**(2)** Right in your project root, there needs to be a `ddocs/` folder.
 That is where you would put the design documents.
 
-**(3)** If you have a ddoc named _"bingo"_ in _./ddocs/bingo/_ directory you
-may want to create _./ddocs/prepare\_bingo.py_ script to rule the ddoc
-processing.
+**(3)** If you have a ddoc named **"bingo"** in `./ddocs/bingo/` directory you
+may want to create `./ddocs/prepare_bingo.py` script to rule the ddoc
+processing. On its execution, such a script would receive several global
+variables:
 
-**(4)** Once application is ready to be deployed, run `chooh push ddoc DDOC_NAME TARGET_DB_NAME`.
+- `deployment` with the name of the current deployment;
+- `ddoc_dir` with the absolute path to the directory where ddoc is being
+  assembled (yes, it is different from where it is being edited);
+- `config` with the deployment config object taken from the `chooh.yaml` of your
+  project;
+- `changes` object describing the actual changes made to the ddoc (`None`
+  if the deployment is not continious as with `--auto` option).
+
+**(4)** Once application is ready to be deployed, run `chooh deploy development`.
 You may also want to add `--auto` flag to make **chooh** watch your changes
-and automatically push them right where you'd like to observe them.
+and automatically push them according to your deployment setup.
 
 
 A better documentation is to be written eventually. In meanwhile, please
@@ -57,6 +79,6 @@ and its README telling how to get started with **chooh**.
 
 ## TODOs
 
-- Command for boilerplating the project.
-- Pushing data documents.
-- Pushing scenarios, like when several ddocs/data/databases involved.
+- [ ] Command for boilerplating projects.
+- [ ] Pushing data documents.
+- [x] ~~Pushing scenarios, like when several ddocs/data/databases involved.~~
