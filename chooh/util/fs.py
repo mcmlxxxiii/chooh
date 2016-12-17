@@ -25,6 +25,17 @@ def copydir(src, dest):
         else:
             raise
 
+def cleanup_dir(dir_path):
+    for the_file in os.listdir(dir_path):
+        path = os.path.join(dir_path, the_file)
+        try:
+            if os.path.isfile(path):
+                os.unlink(path)
+            elif os.path.isdir(path):
+                shutil.rmtree(path)
+        except Exception as e:
+            raise e
+
 #unused
 def rmdir(dir_path):
     shutil.rmtree(dir_path)

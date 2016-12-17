@@ -14,16 +14,16 @@ class Bundler():
         self._formatters = []
         self._includes_start_with = kwargs['includes_start_with']
 
-    def register_processor(self, processor):
-        self._processors.append(processor)
+    def register_processor(self, processor, **kwargs):
+        self._processors.append([processor, kwargs])
 
     def register_formatter(self, processor):
         self._formatters.append(processor)
 
     def _process_include(self, *args):
         result = None
-        for processor in self._processors:
-            result = processor(*args)
+        for processor, kwargs in self._processors:
+            result = processor(*args, **kwargs)
             if result:
                 break
         return result
@@ -35,7 +35,7 @@ class Bundler():
         return formatted_block
 
     def bundle(self, in_path, out_path):
-        bundle_dir_path = os.path.dirname(in_path)
+        source_dir = os.path.dirname(in_path)
         target_file = open(out_path, 'w+')
 
         with open(in_path, 'r') as source_file:
@@ -46,7 +46,7 @@ class Bundler():
                     tokens = lstripped.rstrip() \
                         [len(self._includes_start_with):].split()
                     included_block = self._process_include(
-                            tokens, bundle_dir_path)
+                            tokens, source_dir)
                     if included_block:
                         formatted_block = self._format_block(
                                 included_block, line)

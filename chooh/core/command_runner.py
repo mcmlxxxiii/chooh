@@ -33,6 +33,7 @@ def run(**options):
     app = ChoohApplication(root_dir_path)
 
     if options['deploy']:
-
         if options['<deployment>']:
-            app.deploy(options['<deployment>'], auto=options['--auto'])
+            app.deploy(
+                    options['<deployment>'],
+                    continuously=options['--auto'])

@@ -60,12 +60,17 @@ processing. On its execution, such a script would receive several global
 variables:
 
 - `deployment` with the name of the current deployment;
-- `ddoc_dir` with the absolute path to the directory where ddoc is being
-  assembled (yes, it is different from where it is being edited);
+- `ddoc_assembly_dir` with the absolute path to the directory where ddoc is
+  being assembled (yes, it is different from where it is being edited);
+- `ddoc_support_dir` with the absolute path to the directory that does not get
+  cleaned on every deployment as the ddoc assembly one does;
 - `config` with the deployment config object taken from the `chooh.yaml` of your
   project;
-- `changes` object describing the actual changes made to the ddoc (`None`
-  if the deployment is not continious as with `--auto` option).
+- `changes` object describing the actual changes made to the ddoc (always `None`
+  if the deployment is not continious as with `--auto` flag);
+- `is_deployment_continuous` boolean telling if the deployment is run with the
+  `--auto` flag;
+- `context` object referencing all the above variables.
 
 **(4)** Once application is ready to be deployed, run `chooh deploy development`.
 You may also want to add `--auto` flag to make **chooh** watch your changes

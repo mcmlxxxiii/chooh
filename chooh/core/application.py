@@ -4,6 +4,7 @@ import os
 import time
 import couchdbkit
 import shutil
+import traceback
 
 from . import convention
 from .decorators import log_task
@@ -24,6 +25,8 @@ class ChoohApplication:
                 self._root_dir, convention.DDOCS_DIRNAME)
         self._ddocs_assembly_dir = os.path.join(
                 self._root_dir, convention.DDOCS_ASSEMBLY_DIRNAME)
+        self._ddocs_support_dir = os.path.join(
+                self._root_dir, convention.DDOCS_SUPPORT_DIRNAME)
 
         config = read_yaml(os.path.join(self._root_dir,
                                         convention.CONFIG_FNAME))
@@ -69,21 +72,32 @@ class ChoohApplication:
         copydir(os.path.join(self._ddocs_dir, push_info.ddoc),
                 ddoc_assembly_dir)
 
-    def _prepare_ddoc(self, push_info, changes):
+    def _prepare_ddoc(self, push_info, changes, is_continuous):
         ddoc_assembly_dir = os.path.join(
                 self._ddocs_assembly_dir, push_info.deployment, push_info.ddoc)
+        ddoc_support_dir = os.path.join(
+                self._ddocs_support_dir, push_info.deployment, push_info.ddoc)
+        if not os.path.exists(ddoc_support_dir):
+            os.makedirs(ddoc_support_dir)
         prepare_mod_path = os.path.join(
                 self._ddocs_dir, 'prepare_%s.py' % push_info.ddoc)
 
         if os.path.isfile(prepare_mod_path):
             try:
-                execfile(prepare_mod_path, {
-                    'ddoc_dir': ddoc_assembly_dir,
+                context = {
+                    'ddoc_assembly_dir': ddoc_assembly_dir,
+                    'ddoc_support_dir': ddoc_support_dir,
                     'deployment': push_info.deployment,
-                    'config': push_info.config,
+                    'is_deployment_continuous': is_continuous,
+                    'config': push_info.deployment_config,
                     'changes': changes
-                })
+                }
+                _globals = dict(context)
+                _globals.update({ 'context': context })
+                execfile(prepare_mod_path, _globals)
             except Exception as e:
+                print
+                traceback.print_exc()
                 beep()
                 raise e
 
@@ -101,17 +115,18 @@ class ChoohApplication:
 
     @log_task('Pushing ddoc <%s> to database <%s>', lambda push_info, *args:
             (push_info.ddoc, push_info.target_database))
-    def _prepare_and_push_one_ddoc(self, push_info, changes=None):
+    def _prepare_and_push_one_ddoc(self, push_info, changes=None,
+            is_continuous=False):
         self._prepare_ddoc_dirs(push_info)
-        self._prepare_ddoc(push_info, changes)
+        self._prepare_ddoc(push_info, changes, is_continuous)
         self._push_ddoc(push_info)
 
     @log_task('Deploying <%s>')
-    def _deploy_once(self, deployment_name):
+    def _deploy_once(self, deployment_name, is_continuous=False):
         deployment_info = self._get_deployment_info(deployment_name)
         push_list = deployment_info.pushes
         for push_info in push_list:
-            self._prepare_and_push_one_ddoc(push_info)
+            self._prepare_and_push_one_ddoc(push_info, is_continuous=is_continuous)
 
     def _deploy_continiously(self, deployment_name):
         deployment_info = self._get_deployment_info(deployment_name)
@@ -141,7 +156,10 @@ class ChoohApplication:
             def make_change_handler(push_info, monitored_dir):
                 def change_handler(changes):
                     changes = process_changes(changes, monitored_dir)
-                    self._prepare_and_push_one_ddoc(push_info, changes)
+                    self._prepare_and_push_one_ddoc(
+                            push_info,
+                            changes=changes,
+                            is_continuous=True)
                 return change_handler
 
             observer = observe_directory_changes(
@@ -160,29 +178,31 @@ class ChoohApplication:
         for observer in observers:
             observer.join()
 
-
     def _get_deployment_info(self, deployment_name):
         return DeploymentInfo(
                     deployment_name,
                     self._config['deployments'][deployment_name])
 
-
-    def deploy(self, deployment_name, auto=False):
-        if auto:
+    def deploy(self, deployment_name, continuously=False):
+        if continuously:
             self._deploy_continiously(deployment_name)
         else:
-            self._deploy_once(deployment_name)
+            self._deploy_once(deployment_name, is_continuous=False)
+
+
 
 class PushInfo:
-    def __init__(self, deployment_name, ddoc, target_database, config):
+    def __init__(self, deployment_name, ddoc, target_database,
+            deployment_config):
         self.deployment = deployment_name
         self.ddoc = ddoc
         self.target_database = target_database
-        self.config = config
+        self.deployment_config = deployment_config
 
         server_name, db_name = target_database.split('/')
         self.target_server = server_name
         self.target_database_on_server = db_name
+
 
 class DeploymentInfo:
     def __init__(self, deployment_name, deployment_data):

@@ -16,7 +16,7 @@ def log_task(line_fmt, lmbd = lambda *args: args):
         to match the correct input for the line_fmt.
     """
     def decorator(fn):
-        def decorated(*args):
+        def decorated(*args, **kwargs):
             global task_counter
             arguments = args[1:]
             arguments = lmbd(*arguments)
@@ -26,7 +26,7 @@ def log_task(line_fmt, lmbd = lambda *args: args):
             sys.stdout.write('%s %s %s\n' %
                     (datetime.datetime.now(), task_id, line))
             start_time = time.time()
-            result = fn(*args)
+            result = fn(*args, **kwargs)
             end_time = time.time()
             sys.stdout.write('%s %s Done in %.04f secs\n' %
                     (datetime.datetime.now(), task_id, end_time - start_time))
