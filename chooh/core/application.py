@@ -14,7 +14,6 @@ from chooh.util.fs import copydir
 from chooh.util.fs_observer import observe_directory_changes
 
 
-
 class ChoohApplication:
 
     def __init__(self, root_dir):
@@ -77,10 +76,12 @@ class ChoohApplication:
                 self._ddocs_assembly_dir, push_info.deployment, push_info.ddoc)
         ddoc_support_dir = os.path.join(
                 self._ddocs_support_dir, push_info.deployment, push_info.ddoc)
-        if not os.path.exists(ddoc_support_dir):
-            os.makedirs(ddoc_support_dir)
         prepare_mod_path = os.path.join(
                 self._ddocs_dir, 'prepare_%s.py' % push_info.ddoc)
+
+        if push_info.number == 1:
+            shutil.rmtree(ddoc_support_dir)
+            os.makedirs(ddoc_support_dir)
 
         if os.path.isfile(prepare_mod_path):
             try:
@@ -117,6 +118,7 @@ class ChoohApplication:
             (push_info.ddoc, push_info.target_database))
     def _prepare_and_push_one_ddoc(self, push_info, changes=None,
             is_continuous=False):
+        push_info.number += 1
         self._prepare_ddoc_dirs(push_info)
         self._prepare_ddoc(push_info, changes, is_continuous)
         self._push_ddoc(push_info)
@@ -194,6 +196,7 @@ class ChoohApplication:
 class PushInfo:
     def __init__(self, deployment_name, ddoc, target_database,
             deployment_config):
+        self.number = 0
         self.deployment = deployment_name
         self.ddoc = ddoc
         self.target_database = target_database

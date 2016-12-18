@@ -36,6 +36,9 @@ def cleanup_dir(dir_path):
         except Exception as e:
             raise e
 
+def is_dir_empty(dir_path):
+    return len(os.listdir(dir_path)) == 0
+
 #unused
 def rmdir(dir_path):
     shutil.rmtree(dir_path)
