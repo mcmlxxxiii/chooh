@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
-from chooh.util.bundler import Bundler
+from chooh.contrib.bundling import Bundler
 
 from chooh.contrib.bundling.processors.file_contents \
         import include_file_contents

@@ -50,3 +50,13 @@ def get_dir_hierarchy(dir_path):
         dir_tree.append(os.path.sep.join(dir_path_parts[0:i+1]))
     dir_tree = [ os.path.sep ] + dir_tree
     return dir_tree
+
+def find_files(dir_path, extension):
+    dir_path_len = len(dir_path + '/')
+    paths = []
+    for root, dirs, files in os.walk(dir_path):
+        for fname in files:
+            if fname.endswith('.' + extension):
+                paths.append(os.path.join(root, fname))
+    paths = [ path[dir_path_len:] for path in paths ]
+    return paths

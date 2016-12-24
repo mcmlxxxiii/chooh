@@ -80,7 +80,8 @@ class ChoohApplication:
                 self._ddocs_dir, 'prepare_%s.py' % push_info.ddoc)
 
         if push_info.number == 1:
-            shutil.rmtree(ddoc_support_dir)
+            if os.path.exists(ddoc_support_dir):
+                shutil.rmtree(ddoc_support_dir)
             os.makedirs(ddoc_support_dir)
 
         if os.path.isfile(prepare_mod_path):
