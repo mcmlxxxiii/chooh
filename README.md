@@ -1,8 +1,9 @@
 **chooh** is an utility to assist with development and deployment
 of so called couchapps, web applications engineered to be served from CouchDB
-design documents.
+design documents. Please refer to the [chooh-demo](https://github.com/mcmlxxxiii/chooh-demo) 
+application for more context.
 
-It provides some features, such as ddoc prepare scripts, custom asset
+**chooh** provides some features, such as ddoc prepare scripts, custom asset
 bundling and support for multiple databases, that the creator was missing
 in those already existing great tools.
 
